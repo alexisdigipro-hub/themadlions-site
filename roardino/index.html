@@ -150,6 +150,19 @@ a{color:inherit}
   .hide-sm{display:none}
 }
 
+/* ---------- Sign in ---------- */
+.auth{max-width:460px;margin:0 auto;padding:clamp(28px,7vw,64px) 16px 80px}
+.auth .hero-h{font-size:clamp(38px,8vw,58px)}
+.auth-card{background:var(--panel);border:1px solid var(--line);border-radius:24px;box-shadow:var(--lit);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);padding:20px;display:flex;flex-direction:column;gap:12px}
+.msg{font-size:14px;line-height:1.5;color:var(--muted);margin:0}
+.msg.err{color:#ff7a70}
+.msg.ok{color:#7ee2a0}
+.linkish{background:none;border:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;padding:0;font-size:13px;cursor:pointer;align-self:flex-start}
+.me{display:inline-flex;align-items:center;gap:8px}
+.me .o-av{width:26px;height:26px;font-size:11px;background:color-mix(in srgb,var(--brand) 30%,transparent);color:#fff;border-radius:50%;display:grid;place-items:center;font-weight:700}
+.save-state{font-size:12px;color:var(--muted);font-weight:500}
+.center-note{min-height:50vh;display:grid;place-items:center;color:var(--muted)}
+
 /* ---------- Modal ---------- */
 .modal-bg{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);display:grid;place-items:end center;padding:16px;backdrop-filter:blur(4px)}
 @media (min-width:640px){.modal-bg{place-items:center}}
@@ -271,30 +284,29 @@ body.viewer.v-light{background:#f6f4f0}
 </head>
 <body>
 <div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <div class="toast" id="toast"></div>
 
 <script>
 'use strict';
 /* =========================================================
    Roardino — standalone ordino (call sheet) builder
-   Drafts live in this browser (localStorage). Publishing stores the
-   ordino in RoarMe's Supabase project (table roardino_links, nothing
-   to do with the hub) behind a short link ?t=<token>; the device keeps
-   a secret edit key so later changes update the same link. Old #o=
-   links (the whole ordino packed in the URL) still open.
+   Accounts (email + password) and ordinos live in RoarMe's Supabase
+   project: Auth for sign-in, tables roardino_profiles and
+   roardino_ordinos (row-level security, owner only). Nothing touches
+   the hub. Send publishes a copy behind a short link ?t=<token>,
+   read through roardino_get(); #o= links (whole ordino packed in the
+   URL) remain as the offline fallback.
    ========================================================= */
 
-const STORE_KEY = 'roardino:v1';
-// RoarMe's Supabase project; the publishable key is public by design.
-const SB_URL = 'https://bzmjhbnwhdwmncxkqkdl.supabase.co/rest/v1/rpc/';
+const STORE_KEY = 'roardino:v1'; // drafts from before accounts, moved into the account on first sign-in
+// RoarMe's Supabase project (its Auth for accounts, tables roardino_*); the publishable key is public by design.
+const SB_URL = 'https://bzmjhbnwhdwmncxkqkdl.supabase.co';
 const SB_KEY = 'sb_publishable_7mQ3e0NH5lCmdoIKx2-FUA_EgCoXx9X';
-async function rpc(fn, args){
-  const r = await fetch(SB_URL + fn, { method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
-  const j = await r.json().catch(() => null);
-  if (!r.ok) throw new Error((j && j.message) || 'HTTP ' + r.status);
-  return j;
-}
-function newKey(){ const b = new Uint8Array(24); crypto.getRandomValues(b); return b64u.enc(b); }
+const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, { auth: { storageKey: 'roardino-auth', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) : null;
+async function rpc(fn, args){ const { data, error } = await sb.rpc(fn, args); if (error) throw error; return data; }
+let session = null, profile = null;
+let flushEditor = null; // set while the editor is open, so leaving it saves first
 const ACCENTS = ['#d40000','#C8503F','#E0A33A','#3F8F6B','#3D6FD8','#8A5CD6','#D9467A','#FFFFFF'];
 const BLOCK_DEFS = {
   groupcalls: 'Calls ανά ομάδα',
@@ -375,14 +387,30 @@ function normalize(o){
   return out;
 }
 
-/* ---------- storage ---------- */
-function loadAll(){ try { return JSON.parse(localStorage.getItem(STORE_KEY) || '[]').map(normalize); } catch { return []; } }
-function saveAll(list){
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(list)); return true; }
-  catch { toast('Δεν χωράει άλλο στη μνήμη — μίκρυνε τις φωτογραφίες'); return false; }
+/* ---------- storage: the signed-in account's ordinos ---------- */
+const COLS = 'id,data,token,published_at,updated_at';
+const rowToOrdino = r => { const o = normalize(r.data); o.id = r.id; o.token = r.token; o.publishedAt = r.published_at; o.updatedAt = Date.parse(r.updated_at); return o; };
+const toData = o => { const d = clone(o); for (const k of ['id','token','publishedAt','updatedAt','pub']) delete d[k]; return d; };
+async function listOrdinos(){ const { data, error } = await sb.from('roardino_ordinos').select(COLS).order('updated_at', { ascending: false }); if (error) throw error; return data.map(rowToOrdino); }
+async function getOrdino(id){ const { data, error } = await sb.from('roardino_ordinos').select(COLS).eq('id', id).maybeSingle(); if (error) throw error; return data && rowToOrdino(data); }
+async function createOrdino(o){ const { data, error } = await sb.from('roardino_ordinos').insert({ data: toData(o) }).select(COLS).single(); if (error) throw error; return rowToOrdino(data); }
+async function saveOrdino(o){ const { error } = await sb.from('roardino_ordinos').update({ data: toData(o), updated_at: new Date().toISOString() }).eq('id', o.id); if (error) throw error; }
+async function deleteOrdino(id){ const { error } = await sb.from('roardino_ordinos').delete().eq('id', id); if (error) throw error; }
+function localDrafts(){ try { return JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch { return []; } }
+async function importLocalDrafts(){
+  const list = localDrafts(); if (!list.length) return 0;
+  let n = 0;
+  for (const d of list){ try { await createOrdino(normalize(d)); n++; } catch {} }
+  if (n === list.length){ try { localStorage.removeItem(STORE_KEY); } catch {} }
+  return n;
 }
-function upsert(o){ const list = loadAll(); const i = list.findIndex(x => x.id === o.id); o.updatedAt = Date.now(); if (i >= 0) list[i] = o; else list.unshift(o); saveAll(list); }
-function removeOrdino(id){ saveAll(loadAll().filter(x => x.id !== id)); }
+async function loadProfile(){
+  const u = session.user;
+  const { data } = await sb.from('roardino_profiles').select('name,company,role,phone').eq('id', u.id).maybeSingle();
+  if (data){ profile = data; return; }
+  profile = { name: (u.user_metadata && u.user_metadata.name) || '', company: (u.user_metadata && u.user_metadata.company) || '', role: '', phone: '' };
+  await sb.from('roardino_profiles').insert({ id: u.id, ...profile });
+}
 
 /* ---------- images ---------- */
 function readImage(file, maxW, quality = 0.78, type = 'image/jpeg'){
@@ -438,24 +466,11 @@ async function unpack(str){
   }
   return JSON.parse(new TextDecoder().decode(bytes));
 }
-// Publishes (or republishes) to RoarMe's database and returns the short link.
+// Saves, then publishes the working copy behind the ordino's short link (the same link on every republish).
 async function publishOrdino(o){
-  const s = clone(o);
-  delete s.id; delete s.createdAt; delete s.pub;
-  s.project.cover = (s.details.cover && s.project.cover) ? await shrinkDataUrl(s.project.cover, 1080, 0.72, 'image/jpeg') : '';
-  s.project.logo = s.project.logo ? await shrinkDataUrl(s.project.logo, 320, 0.9, 'image/png') : '';
-  s.blocks = s.blocks.filter(b => b.on);
-  const pub = o.pub && o.pub.token ? o.pub : { token: null, key: newKey() };
-  let token;
-  try { token = await rpc('roardino_publish', { p_token: pub.token, p_key: pub.key, p_data: s }); }
-  catch (e) {
-    if (!pub.token) throw e;
-    // The link was removed or the key no longer matches: start a fresh link.
-    pub.token = null; pub.key = newKey();
-    token = await rpc('roardino_publish', { p_token: null, p_key: pub.key, p_data: s });
-  }
-  o.pub = { token, key: pub.key, at: Date.now() };
-  upsert(o);
+  await saveOrdino(o);
+  const token = await rpc('roardino_publish', { p_id: o.id });
+  o.token = token; o.publishedAt = new Date().toISOString();
   return linkFor(token);
 }
 const linkFor = token => location.origin + location.pathname + '?t=' + token;
@@ -463,7 +478,7 @@ const linkFor = token => location.origin + location.pathname + '?t=' + token;
 // Offline fallback: the whole ordino packed into the URL fragment.
 async function buildShareUrl(o){
   const s = clone(o);
-  delete s.id; delete s.createdAt; delete s.pub;
+  delete s.id; delete s.createdAt; delete s.pub; delete s.token; delete s.publishedAt; delete s.updatedAt;
   // Smaller images so the link stays light enough for WhatsApp / Viber / SMS.
   s.project.cover = (s.details.cover && s.project.cover) ? await shrinkDataUrl(s.project.cover, 640, 0.55, 'image/jpeg') : '';
   s.project.logo = s.project.logo ? await shrinkDataUrl(s.project.logo, 220, 0.9, 'image/png') : '';
@@ -671,20 +686,51 @@ const brandMark = (compact) => h('a', { class: 'brand', href: location.pathname 
   h('span', { class: 'rm', html: '<span class="a">ROAR</span><span class="b">DINO</span>' }),
   compact ? null : h('span', { class: 'by', html: 'by <b>THE<strong>MAD</strong>LIONS</b>' }));
 
-function route(){
+async function route(){
+  if (flushEditor){ const f = flushEditor; flushEditor = null; f(); }
   const hash = location.hash;
   const t = new URLSearchParams(location.search).get('t');
   if (t && !hash.startsWith('#edit/') && hash !== '#home') return viewToken(t);
   if (hash.startsWith('#o=')) return viewLink(hash.slice(3));
   if (hash === '#demo') return viewLink(null, demoOrdino());
   document.body.className = '';
+  if (!sb){ app.innerHTML = '<div class="v-error"><div><h2>Δεν φόρτωσε</h2><p>Έλεγξε τη σύνδεση στο internet και ανανέωσε τη σελίδα.</p></div></div>'; return; }
+  if (!session) return viewAuth();
   if (hash.startsWith('#edit/')){
-    const o = loadAll().find(x => x.id === hash.slice(6));
-    if (o) return viewEditor(o);
+    app.replaceChildren(h('div', { class: 'center-note' }, 'Φόρτωση…'));
+    try { const o = await getOrdino(hash.slice(6)); if (o) return viewEditor(o); } catch {}
   }
   return viewHome();
 }
 window.addEventListener('hashchange', route);
+
+let booted = false;
+async function onSignedIn(){
+  try { await loadProfile(); } catch {}
+  try { const n = await importLocalDrafts(); if (n) toast(n === 1 ? 'Μπήκε 1 ordino από αυτή τη συσκευή στον λογαριασμό σου' : `Μπήκαν ${n} ordino από αυτή τη συσκευή στον λογαριασμό σου`); } catch {}
+}
+if (sb){
+  sb.auth.onAuthStateChange((event, s) => {
+    const was = session && session.user.id;
+    session = s;
+    // Supabase advises against awaiting its own calls inside this callback, so the work runs on the next tick.
+    setTimeout(async () => {
+      if (event === 'PASSWORD_RECOVERY') openPassword(true);
+      if (!booted) return;
+      const now = s && s.user.id;
+      if (now && now !== was){ await onSignedIn(); if (location.hash.startsWith('#access_token') || location.hash.startsWith('#error')) history.replaceState(null, '', location.pathname); route(); }
+      if (!now && was){ profile = null; route(); }
+    }, 0);
+  });
+}
+async function boot(){
+  if (sb){
+    try { const { data } = await sb.auth.getSession(); session = data.session; } catch {}
+    if (session) await onSignedIn();
+  }
+  booted = true;
+  route();
+}
 
 /* ---------- link viewer (what the crew opens) ---------- */
 // A sample ordino for the Lab page and for first-time visitors: drawn cover, no stored data.
@@ -740,11 +786,134 @@ async function viewLink(packed, given, updatedAt){
   }
 }
 
+/* ---------- sign in / sign up ---------- */
+const AUTH_ERR = [
+  [/invalid login/i, 'Λάθος email ή κωδικός.'],
+  [/not confirmed/i, 'Δεν έχεις επιβεβαιώσει ακόμα το email σου. Άνοιξε το link που σου στείλαμε.'],
+  [/already registered|already exists/i, 'Υπάρχει ήδη λογαριασμός με αυτό το email. Συνδέσου ή ζήτα νέο κωδικό.'],
+  [/at least|weak|short/i, 'Ο κωδικός θέλει τουλάχιστον 6 χαρακτήρες.'],
+  [/rate|too many|seconds/i, 'Πολλές προσπάθειες. Περίμενε λίγο και δοκίμασε ξανά.'],
+  [/valid email|invalid email|email address/i, 'Το email δεν φαίνεται σωστό.'],
+];
+const authErr = e => { const m = (e && e.message) || ''; for (const [re, t] of AUTH_ERR) if (re.test(m)) return t; return 'Κάτι δεν πήγε καλά. Δοκίμασε ξανά.'; };
+const appUrl = () => location.origin + location.pathname;
+
+function viewAuth(mode = 'in'){
+  document.title = 'Roardino · Σύνδεση';
+  const f = { name: '', company: '', email: '', password: '' };
+  const msg = h('p', { class: 'msg' });
+  const say = (t, kind = '') => { msg.textContent = t; msg.className = 'msg' + (kind ? ' ' + kind : ''); };
+  const inp = (key, label, type = 'text', extra = {}) => h('label', { class: 'field' }, h('span', {}, label),
+    h('input', { class: 'input', type, value: f[key], oninput: e => { f[key] = e.target.value; }, ...extra }));
+  const card = h('form', { class: 'auth-card', novalidate: true });
+  const draw = () => {
+    const up = mode === 'up';
+    card.replaceChildren(...[
+      h('div', { class: 'seg', style: 'align-self:flex-start' },
+        h('button', { type: 'button', class: up ? '' : 'on', onclick: () => { mode = 'in'; say(''); draw(); } }, 'Σύνδεση'),
+        h('button', { type: 'button', class: up ? 'on' : '', onclick: () => { mode = 'up'; say(''); draw(); } }, 'Νέος λογαριασμός')),
+      up ? inp('name', 'Ονοματεπώνυμο', 'text', { autocomplete: 'name', required: true }) : null,
+      up ? inp('company', 'Εταιρεία / παραγωγή (προαιρετικό)', 'text', { autocomplete: 'organization' }) : null,
+      inp('email', 'Email', 'email', { autocomplete: 'email', inputmode: 'email', required: true }),
+      inp('password', up ? 'Κωδικός (τουλάχιστον 6 χαρακτήρες)' : 'Κωδικός', 'password', { autocomplete: up ? 'new-password' : 'current-password', required: true }),
+      h('button', { class: 'btn primary', type: 'submit' }, up ? 'Δημιουργία λογαριασμού' : 'Σύνδεση'),
+      up ? null : h('button', { class: 'linkish', type: 'button', onclick: forgot }, 'Ξέχασες τον κωδικό;'),
+      msg,
+      h('p', { class: 'hint' }, 'Αν έχεις ήδη λογαριασμό στο RoarMe, μπαίνεις με τα ίδια στοιχεία.')].filter(Boolean));
+  };
+  async function forgot(){
+    if (!f.email.trim()) return say('Γράψε πρώτα το email σου και πάτα ξανά «Ξέχασες τον κωδικό;».', 'err');
+    say('Αποστολή…');
+    const { error } = await sb.auth.resetPasswordForEmail(f.email.trim(), { redirectTo: appUrl() });
+    if (error) say(authErr(error), 'err'); else say('Σου στείλαμε email με link για νέο κωδικό.', 'ok');
+  }
+  card.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = card.querySelector('button[type=submit]');
+    const email = f.email.trim();
+    if (!email || !f.password) return say('Συμπλήρωσε email και κωδικό.', 'err');
+    btn.disabled = true; say(mode === 'up' ? 'Δημιουργία…' : 'Σύνδεση…');
+    if (mode === 'up'){
+      if (!f.name.trim()){ btn.disabled = false; return say('Γράψε το όνομά σου.', 'err'); }
+      const { data, error } = await sb.auth.signUp({ email, password: f.password, options: { emailRedirectTo: appUrl(), data: { name: f.name.trim(), company: f.company.trim() } } });
+      btn.disabled = false;
+      if (error) return say(authErr(error), 'err');
+      if (!data.session){ mode = 'in'; draw(); say(`Σχεδόν έτοιμο: σου στείλαμε email στο ${email}. Άνοιξε το link για να ενεργοποιηθεί ο λογαριασμός και μετά συνδέσου εδώ.`, 'ok'); }
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password: f.password });
+      btn.disabled = false;
+      if (error) return say(authErr(error), 'err');
+    }
+  });
+  draw();
+  app.replaceChildren(
+    h('header', { class: 'topbar' }, brandMark(), h('div', { class: 'spacer' }), h('a', { class: 'btn small', href: '#demo' }, 'Παράδειγμα')),
+    h('main', { class: 'auth' },
+      h('p', { class: 'kicker' }, 'The Mad Lions Lab · Experiment 02'),
+      h('h1', { class: 'hero-h', html: 'Το ordino σου,<br><b>σε ένα link.</b>' }),
+      h('p', { class: 'lede' }, 'Φτιάξε λογαριασμό με το email σου και κράτα όλα τα ordino σου σε ένα μέρος, από κάθε συσκευή.'),
+      card));
+}
+
+function openPassword(recovery){
+  if (document.querySelector('.modal-bg[data-k=pw]')) return;
+  const pw = h('input', { class: 'input', type: 'password', autocomplete: 'new-password', placeholder: 'Τουλάχιστον 6 χαρακτήρες' });
+  const msg = h('p', { class: 'msg' });
+  const close = () => bg.remove();
+  const bg = h('div', { class: 'modal-bg', 'data-k': 'pw', onclick: e => { if (e.target === bg && !recovery) close(); } },
+    h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' },
+      h('h3', {}, recovery ? 'Βάλε νέο κωδικό' : 'Αλλαγή κωδικού'),
+      h('label', { class: 'field' }, h('span', {}, 'Νέος κωδικός'), pw), msg,
+      h('button', { class: 'btn primary', onclick: async () => {
+        if (pw.value.length < 6){ msg.textContent = 'Ο κωδικός θέλει τουλάχιστον 6 χαρακτήρες.'; msg.className = 'msg err'; return; }
+        const { error } = await sb.auth.updateUser({ password: pw.value });
+        if (error){ msg.textContent = authErr(error); msg.className = 'msg err'; return; }
+        close(); toast('Ο κωδικός άλλαξε');
+      } }, 'Αποθήκευση'),
+      recovery ? null : h('button', { class: 'btn ghost', onclick: close }, 'Ακύρωση')));
+  document.body.append(bg);
+  pw.focus();
+}
+
+function openAccount(){
+  const p = { ...profile };
+  const fld = (key, label, type = 'text', extra = {}) => h('label', { class: 'field' }, h('span', {}, label),
+    h('input', { class: 'input', type, value: p[key] || '', oninput: e => { p[key] = e.target.value; }, ...extra }));
+  const msg = h('p', { class: 'msg' });
+  const close = () => bg.remove();
+  const bg = h('div', { class: 'modal-bg', onclick: e => { if (e.target === bg) close(); } },
+    h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' },
+      h('h3', {}, 'Ο λογαριασμός σου'),
+      h('label', { class: 'field' }, h('span', {}, 'Email'), h('input', { class: 'input', value: session.user.email, readonly: true, disabled: true })),
+      fld('name', 'Ονοματεπώνυμο', 'text', { autocomplete: 'name' }),
+      h('div', { class: 'row' }, fld('company', 'Εταιρεία / παραγωγή', 'text', { autocomplete: 'organization' }), fld('role', 'Ρόλος', 'text', { placeholder: 'π.χ. Παραγωγός' })),
+      fld('phone', 'Τηλέφωνο', 'tel', { autocomplete: 'tel', inputmode: 'tel' }),
+      h('p', { class: 'hint' }, 'Η εταιρεία μπαίνει αυτόματα ως υπογραφή σε κάθε νέο ordino.'),
+      msg,
+      h('button', { class: 'btn primary', onclick: async () => {
+        const { error } = await sb.from('roardino_profiles').update({ name: p.name, company: p.company, role: p.role, phone: p.phone, updated_at: new Date().toISOString() }).eq('id', session.user.id);
+        if (error){ msg.textContent = 'Δεν αποθηκεύτηκε. Δοκίμασε ξανά.'; msg.className = 'msg err'; return; }
+        profile = p; close(); toast('Αποθηκεύτηκε'); if (!location.hash.startsWith('#edit/')) viewHome();
+      } }, 'Αποθήκευση'),
+      h('div', { class: 'linkbox' },
+        h('button', { class: 'btn', style: 'flex:1', onclick: () => { close(); openPassword(false); } }, 'Αλλαγή κωδικού'),
+        h('button', { class: 'btn danger', style: 'flex:1', onclick: async () => { close(); await sb.auth.signOut(); } }, 'Αποσύνδεση')),
+      h('button', { class: 'btn ghost', onclick: close }, 'Κλείσιμο')));
+  document.body.append(bg);
+}
+const meButton = () => h('button', { class: 'btn small me', title: 'Λογαριασμός', onclick: openAccount },
+  h('span', { class: 'o-av' }, initials((profile && profile.name) || (session && session.user.email) || '?')),
+  h('span', { class: 'hide-sm' }, (profile && profile.name) || 'Λογαριασμός'));
+
 /* ---------- home ---------- */
-function viewHome(){
+async function viewHome(){
   document.title = 'Roardino';
-  const list = loadAll();
-  const create = () => { const o = blankOrdino(); upsert(o); location.hash = '#edit/' + o.id; };
+  const grid = h('div', { class: 'grid' }, h('div', { class: 'card-meta' }, 'Φόρτωση…'));
+  const create = async () => {
+    const o = blankOrdino();
+    if (profile && profile.company) o.project.company = profile.company;
+    try { const c = await createOrdino(o); location.hash = '#edit/' + c.id; } catch { toast('Δεν δημιουργήθηκε. Έλεγξε τη σύνδεση.'); }
+  };
   const card = o => h('article', { class: 'card' },
     h('div', { class: 'card-cover', style: o.project.cover ? `background-image:url('${o.project.cover}')` : `background:linear-gradient(135deg,${o.look.accent},#111)` },
       h('span', { class: 'chip' }, o.day.label || 'Ordino')),
@@ -752,39 +921,53 @@ function viewHome(){
       h('div', { class: 'card-title' }, o.project.title || 'Χωρίς τίτλο'),
       h('div', { class: 'card-meta' }, [fmtDate(o.day.date), o.day.callTime && 'Call ' + o.day.callTime].filter(Boolean).join(' · ')),
       o.loc.name ? h('div', { class: 'card-meta' }, o.loc.name) : null,
-      o.pub ? h('div', { class: 'card-meta', style: 'color:#2fd36b' }, '● Σε link') : null),
+      o.token ? h('div', { class: 'card-meta', style: 'color:#2fd36b' }, '● Σε link') : null),
     h('div', { class: 'card-actions' },
       h('a', { class: 'btn small primary', href: '#edit/' + o.id }, 'Άνοιγμα'),
-      h('button', { class: 'btn small', onclick: () => { const c = clone(o); c.id = uid(); c.createdAt = Date.now(); c.project.title = (c.project.title || 'Ordino') + ' (αντίγραφο)'; delete c.pub; upsert(c); viewHome(); toast('Έγινε αντίγραφο'); } }, 'Αντίγραφο'),
-      h('button', { class: 'btn small ghost danger', onclick: () => { if (confirm(o.pub ? 'Να διαγραφεί αυτό το ordino; Το link που έστειλες θα σταματήσει να ανοίγει.' : 'Να διαγραφεί αυτό το ordino από αυτή τη συσκευή;')){ if (o.pub) rpc('roardino_delete', { p_token: o.pub.token, p_key: o.pub.key }).catch(() => {}); removeOrdino(o.id); viewHome(); } } }, 'Διαγραφή')));
-
+      h('button', { class: 'btn small', onclick: async () => { const c = clone(o); c.project.title = (c.project.title || 'Ordino') + ' (αντίγραφο)'; try { await createOrdino(c); toast('Έγινε αντίγραφο'); viewHome(); } catch { toast('Δεν έγινε αντίγραφο'); } } }, 'Αντίγραφο'),
+      h('button', { class: 'btn small ghost danger', onclick: async () => {
+        if (!confirm(o.token ? 'Να διαγραφεί αυτό το ordino; Το link που έστειλες θα σταματήσει να ανοίγει.' : 'Να διαγραφεί αυτό το ordino;')) return;
+        try { await deleteOrdino(o.id); viewHome(); } catch { toast('Δεν διαγράφηκε'); }
+      } }, 'Διαγραφή')));
+  const first = profile && profile.name ? profile.name.split(/\s+/)[0] : '';
   app.replaceChildren(
     h('header', { class: 'topbar' },
       brandMark(),
       h('div', { class: 'spacer' }),
+      meButton(),
       h('button', { class: 'btn primary', onclick: create }, '+ Νέο ordino')),
     h('main', { class: 'home' },
-      h('p', { class: 'kicker' }, 'The Mad Lions Lab · Experiment 02'),
-      h('h1', { class: 'hero-h', html: 'Το ordino σου,<br><b>σε ένα link.</b>' }),
-      h('p', { class: 'lede' }, 'Γράψε call, τοποθεσία και πρόγραμμα, διάλεξε φωτογραφία και χρώμα, και στείλε στο συνεργείο ένα link που ανοίγει όμορφα στο κινητό. Χωρίς λογαριασμό.'),
-      h('p', { style: 'margin:-12px 0 26px' }, h('a', { class: 'btn small', href: '#demo' }, 'Δες ένα παράδειγμα')),
-      h('div', { class: 'grid' },
-        h('button', { class: 'card new-card', onclick: create }, h('span', { class: 'plus' }, '+'), 'Νέο ordino'),
-        list.map(card)),
-      h('p', { class: 'empty-note' }, 'Τα ordino σου αποθηκεύονται μόνο σε αυτή τη συσκευή και σε αυτόν τον browser.')));
+      h('p', { class: 'kicker' }, first ? `Γεια σου, ${first}` : 'The Mad Lions Lab · Experiment 02'),
+      h('h1', { class: 'hero-h', html: 'Τα ordino σου,<br><b>σε ένα link.</b>' }),
+      h('p', { class: 'lede' }, 'Γράψε call, τοποθεσία και πρόγραμμα, διάλεξε φωτογραφία και χρώμα, και στείλε στο συνεργείο ένα link που ανοίγει όμορφα στο κινητό.'),
+      grid,
+      h('p', { class: 'empty-note' }, 'Τα ordino σου είναι στον λογαριασμό σου και τα βλέπεις από κάθε συσκευή.')));
+  let list;
+  try { list = await listOrdinos(); }
+  catch { grid.replaceChildren(h('div', { class: 'card-meta' }, 'Δεν φόρτωσαν τα ordino σου. Έλεγξε τη σύνδεση και ανανέωσε.')); return; }
+  grid.replaceChildren(h('button', { class: 'card new-card', onclick: create }, h('span', { class: 'plus' }, '+'), 'Νέο ordino'), ...list.map(card));
 }
 
 /* ---------- editor ---------- */
 function viewEditor(o){
   o = normalize(o);
-  let wxTimer, saveTimer;
-  const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => upsert(o), 250); };
+  let wxTimer, saveTimer, dirty = false;
+  const saveState = h('span', { class: 'save-state' }, 'Αποθηκεύτηκε');
+  const flush = async () => {
+    clearTimeout(saveTimer);
+    if (!dirty) return;
+    dirty = false; saveState.textContent = 'Αποθήκευση…';
+    try { await saveOrdino(o); saveState.textContent = 'Αποθηκεύτηκε'; }
+    catch { dirty = true; saveState.textContent = 'Δεν αποθηκεύτηκε, ξαναδοκιμάζω…'; saveTimer = setTimeout(flush, 4000); }
+  };
+  const save = () => { dirty = true; saveState.textContent = 'Αλλαγές…'; clearTimeout(saveTimer); saveTimer = setTimeout(flush, 900); };
+  flushEditor = flush;
+  window.onbeforeunload = () => { if (dirty){ flush(); return 'Αποθήκευση σε εξέλιξη'; } };
   const phoneScroll = h('div', { class: 'phone-scroll' });
   const refresh = async () => {
     const top = phoneScroll.scrollTop;
     phoneScroll.innerHTML = renderOrdino(o, { interactive: false });
     phoneScroll.scrollTop = top;
-    document.documentElement.style.setProperty('--brand', '#C8503F');
     clearTimeout(wxTimer);
     if ((o.details.weather || o.details.sun) && o.loc.lat){
       wxTimer = setTimeout(async () => {
@@ -930,9 +1113,10 @@ function viewEditor(o){
 
   app.replaceChildren(
     h('header', { class: 'topbar' },
-      h('a', { class: 'btn icon ghost', href: location.pathname + '#', title: 'Πίσω', html: ICON.back, onclick: () => upsert(o) }),
+      h('a', { class: 'btn icon ghost', href: location.pathname + '#', title: 'Πίσω', html: ICON.back }),
       brandMark(true),
       h('div', { class: 'spacer' }),
+      saveState,
       h('button', { class: 'btn primary', onclick: () => openShare(o) }, h('span', { html: ICON.share }), 'Αποστολή link')),
     ed, tabs);
   document.title = (o.project.title || 'Νέο ordino') + ' · Roardino';
@@ -941,9 +1125,8 @@ function viewEditor(o){
 
 /* ---------- share modal ---------- */
 async function openShare(o){
-  upsert(o);
   const input = h('input', { class: 'input', readonly: true, value: 'Ανέβασμα…', onfocus: e => e.target.select() });
-  const status = h('p', {}, o.pub ? 'Ενημερώνω το ίδιο link με τις αλλαγές σου…' : 'Φτιάχνω το link…');
+  const status = h('p', {}, o.token ? 'Ενημερώνω το ίδιο link με τις αλλαγές σου…' : 'Φτιάχνω το link…');
   const close = () => bg.remove();
   const btns = h('div', { class: 'linkbox' },
     h('button', { class: 'btn primary', style: 'flex:1', onclick: async () => { try { await navigator.clipboard.writeText(input.value); toast('Αντιγράφηκε'); } catch { input.select(); document.execCommand('copy'); toast('Αντιγράφηκε'); } } }, 'Αντιγραφή'),
@@ -956,7 +1139,7 @@ async function openShare(o){
       h('div', { class: 'linkbox' }, input), btns,
       h('button', { class: 'btn ghost', onclick: close }, 'Κλείσιμο')));
   document.body.append(bg);
-  const had = !!(o.pub && o.pub.token);
+  const had = !!o.token;
   try {
     input.value = await publishOrdino(o);
     status.textContent = had
@@ -964,12 +1147,12 @@ async function openShare(o){
       : 'Όποιος έχει το link βλέπει το ordino στο κινητό του, χωρίς λογαριασμό. Αν αλλάξεις κάτι, πάτα ξανά «Αποστολή link»: το ίδιο link ενημερώνεται.';
   } catch {
     input.value = await buildShareUrl(o);
-    status.textContent = 'Δεν υπήρχε σύνδεση με τον server, οπότε έφτιαξα link που κουβαλάει όλο το ordino μέσα του. Δουλεύει κανονικά, αλλά δεν ενημερώνεται αν αλλάξεις κάτι.';
+    status.textContent = 'Δεν υπήρχε σύνδεση με τον server, οπότε έφτιαξα link που κουβαλάει όλο το ordino μέσα του. Δουλεύει κανονικά, αλλά δεν ενημερώνεται αν αλλάξεις κάτι. Όταν επανέλθει η σύνδεση, πάτα ξανά «Αποστολή link».';
   }
   btns.style.visibility = '';
 }
 
-route();
+boot();
 </script>
 </body>
 </html>
