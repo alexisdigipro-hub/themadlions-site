@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://themadlions.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://themadlions.com/roarme/</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://themadlions.com/lab/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://themadlions.com/roardino/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url><loc>https://themadlions.com/</loc><lastmod>2026-10-18</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://themadlions.com/"/>
+    <xhtml:link rel="alternate" hreflang="el" href="https://themadlions.com/el/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://themadlions.com/"/></url>
+  <url><loc>https://themadlions.com/el/</loc><lastmod>2026-10-18</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://themadlions.com/"/>
+    <xhtml:link rel="alternate" hreflang="el" href="https://themadlions.com/el/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://themadlions.com/"/></url>
+  <url><loc>https://themadlions.com/lab/</loc><lastmod>2026-10-18</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://themadlions.com/roarme/</loc><lastmod>2026-10-18</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://themadlions.com/roardino/</loc><lastmod>2026-10-18</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
 </urlset>
