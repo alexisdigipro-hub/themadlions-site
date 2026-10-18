@@ -1105,7 +1105,7 @@ function viewEditor(o){
 
   const form = h('div', { class: 'form' },
     section('Βασικά', 'τίτλος, ημέρα, call', true,
-      h('div', { class: 'row' }, txt(o.project, 'title', 'Τίτλος project', { ph: 'π.χ. Ήλιε μου' }), txt(o.project, 'artist', 'Καλλιτέχνης / Πελάτης', { ph: 'π.χ. Νίκος Απέργης' })),
+      h('div', { class: 'row' }, txt(o.project, 'artist', 'Πελάτης / Καλλιτέχνης', { ph: 'π.χ. Disney' }), txt(o.project, 'title', 'Τίτλος project', { ph: 'π.χ. The Lion King' })),
       h('div', { class: 'row' }, txt(o.day, 'label', 'Επικεφαλίδα', { ph: 'GENERAL ORDINO' }), txt(o.day, 'date', 'Ημερομηνία', { type: 'date' })),
       h('div', { class: 'row' }, txt(o.day, 'callTime', 'General call', { type: 'time' }), txt(o.day, 'wrapTime', 'Εκτιμώμενο wrap', { type: 'time' }),
         txt(o.day, 'index', 'Ημέρα', { type: 'number', inputmode: 'numeric' }), txt(o.day, 'count', 'από', { type: 'number', inputmode: 'numeric' })),
