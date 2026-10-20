@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- The Mad Lions Lab (Alex, 18 Oct 2026): the tools and apps the studio builds between films, as numbered
-     experiments. Experiment 01 is RoarMe, Experiment 02 is Roardino (the ordino on its own, no tie to the hub), Experiment 03 is RoarMail (desktop mail app; the web demo lives in /roarmail).
+     experiments. Experiment 01 is RoarMe, Experiment 02 is Roardino (the ordino on its own, no tie to the hub), Experiment 03 is RoarMail (desktop mail app; the web demo lives in /roarmail), Experiment 04 is RoarList (shot lists; web app at /roarlist, its live example at /roarlist/#demo).
      Same look and language switch as the main page. -->
 <title>Lab · The Mad Lions</title>
 <script>
@@ -15,7 +15,7 @@
   })()
 </script>
 <link rel="canonical" href="https://themadlions.com/lab/">
-<meta name="description" content="The Mad Lions Lab: the tools and apps we build between films. RoarMe, the messenger for teams, Roardino, the call sheet in one link, and RoarMail, the private mail app.">
+<meta name="description" content="The Mad Lions Lab: the tools and apps we build between films. RoarMe, the messenger for teams, Roardino, the call sheet in one link, RoarMail, the private mail app, and RoarList, the shot list with a frame for every shot.">
 <meta name="theme-color" content="#0b0b0c">
 <meta property="og:title" content="The Mad Lions Lab">
 <meta property="og:description" content="The tools and apps we build between films.">
@@ -219,6 +219,25 @@ footer .wordmark { width: 130px; opacity: .6; }
       <div class="stage wide"><div class="desk"><iframe src="../roarmail/" title="RoarMail web demo" loading="lazy" tabindex="-1"></iframe></div></div>
     </article>
 
+    <article class="exp flip reveal" style="margin-top:10px">
+      <div class="stage wide"><div class="desk"><iframe src="../roarlist/#demo" title="A RoarList shot list" loading="lazy" tabindex="-1"></iframe></div></div>
+      <div>
+        <span class="exp-n">Experiment 04 <i data-t="exp.live">Live · beta</i></span>
+        <h2><span class="a">ROAR</span><span class="b">LIST</span></h2>
+        <p class="what" data-t="rl.what">The shot list, frame by frame. Scenes and shots with size, angle, movement and lens, a picture for every shot, and a PDF the crew can read on set.</p>
+        <ul class="usp">
+          <li><span><b data-t="rl.u1">A frame for every shot.</b> <span data-t="rl.u1s">Drop, paste or sketch it, and the list turns into a storyboard.</span></span></li>
+          <li><span><b data-t="rl.u2">One PDF for the crew.</b> <span data-t="rl.u2s">As a list or as a storyboard, ready for the set.</span></span></li>
+          <li><span><b data-t="rl.u3">Your RoarMe account.</b> <span data-t="rl.u3s">Every shot list in your cloud, on the web and on Mac and Windows.</span></span></li>
+        </ul>
+        <div class="acts">
+          <a class="pill main" href="../roarlist/"><span data-t="rl.open">Make your shot list</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+          <a class="pill" href="../roarlist/#demo" target="_blank" rel="noopener" data-t="rl.demo">See an example</a>
+          <a class="pill" href="https://github.com/alexisdigipro-hub/roarlist/releases/latest" target="_blank" rel="noopener" data-t="rl.dl">Mac / Windows</a>
+        </div>
+      </div>
+    </article>
+
     <div class="next one">
       <div class="card reveal">
         <span class="exp-n" data-t="idea.n">Your idea</span>
@@ -257,6 +276,11 @@ footer .wordmark { width: 130px; opacity: .6; }
     'ml.u2': 'Ιδιωτικό από τη φύση του.', 'ml.u2s': 'Μπλοκάρει τα tracking pixels, ελέγχει τους συνδέσμους, κρατά τους κωδικούς στο keychain του υπολογιστή σου.',
     'ml.u3': 'Αναίρεση σε όλα.', 'ml.u3s': 'Αρχειοθέτηση, διαγραφή, μετακίνηση, ακόμα και αποστολή: λίγα δευτερόλεπτα για να το ξανασκεφτείς.',
     'ml.dl': 'Κατέβασε για Mac / Windows', 'ml.demo': 'Δοκίμασε το web demo',
+    'rl.what': 'Το shot list, κάδρο κάδρο. Σκηνές και πλάνα με μέγεθος, γωνία, κίνηση και φακό, μια εικόνα για κάθε πλάνο, και ένα PDF που διαβάζει το συνεργείο στο γύρισμα.',
+    'rl.u1': 'Ένα κάδρο για κάθε πλάνο.', 'rl.u1s': 'Σύρε, επικόλλησε ή σχεδίασέ το, και η λίστα γίνεται storyboard.',
+    'rl.u2': 'Ένα PDF για το συνεργείο.', 'rl.u2s': 'Σαν λίστα ή σαν storyboard, έτοιμο για το γύρισμα.',
+    'rl.u3': 'Ο λογαριασμός σου στο RoarMe.', 'rl.u3s': 'Όλα σου τα shot lists στο cloud, στο web και σε Mac και Windows.',
+    'rl.open': 'Φτιάξε το shot list σου', 'rl.demo': 'Δες ένα παράδειγμα', 'rl.dl': 'Mac / Windows',
     'idea.n': 'Η ιδέα σου', 'idea.t': 'Ένα εργαλείο που <b>θα ήθελες</b> να υπάρχει;', 'idea.p': 'Πες μας τι καθυστερεί την ομάδα σου. Οι καλύτερες ιδέες γίνονται το επόμενο πείραμα.',
     'footer': '© 2026 The Mad Lions · Lab'
   }
