@@ -275,7 +275,7 @@ footer .wordmark { width: 130px; opacity: .6; }
   setLang(saved)
 
   // the RoarMail demo window keeps its desktop size, scaled to the stage
-  [].slice.call(document.querySelectorAll('.desk')).forEach(function (d) {
+  ;[].slice.call(document.querySelectorAll('.desk')).forEach(function (d) {
     var f = d.querySelector('iframe'), fit = function () { f.style.transform = 'scale(' + d.clientWidth / 1360 + ')' }
     fit(); if ('ResizeObserver' in window) new ResizeObserver(fit).observe(d); else window.addEventListener('resize', fit)
   })
