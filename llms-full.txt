@@ -177,3 +177,5 @@ Write a few lines through the form on this page or to info@themadlions.com: what
 - [The Mad Lions Lab](https://themadlions.com/lab/): the tools and apps the studio builds between films
 - [RoarMe](https://themadlions.com/roarme/): the messenger for teams by The Mad Lions
 - [Roardino](https://themadlions.com/roardino/): the shoot's call sheet in one link
+- [RoarMail](https://themadlions.com/lab/roarmail/): the private mail app for Mac and Windows
+- [RoarList](https://themadlions.com/lab/roarlist/): the shot list with a frame for every shot
