@@ -176,7 +176,7 @@ Write a few lines through the form on this page or to info@themadlions.com: what
 - [Aibsent Studios](https://themadlions.com/aibsent/): the studio's post-production and AI studio, for its films and for others'
 - [The Mad Lions Lab](https://themadlions.com/lab/): the tools and apps the studio builds between films
 - [RoarMe](https://themadlions.com/roarme/): the messenger for teams by The Mad Lions
-- [Roardino](https://themadlions.com/roardino/): the shoot's call sheet in one link
+- [Roardino](https://themadlions.com/lab/roardino/): the shoot's call sheet in one link, with directions, weather, sunrise and sunset, calls by department and the day in the crew's calendar
 - [RoarMail](https://themadlions.com/lab/roarmail/): the private mail app for Mac and Windows
 - [RoarList](https://themadlions.com/lab/roarlist/): the shot list with a frame for every shot
 - [RoarWriter](https://themadlions.com/lab/roarwriter/): screenwriting from the page to the shoot: nine formats (film, TV, sitcom, stage play, musical, audio drama, AV two-column, comic) in English and Greek, revisions and versions, a breakdown, a beat board, a storyboard and shot list, a stripboard shooting schedule, TV series with their bible, writing together, an AI that reads the whole script (coverage, continuity, budget pass, pitch package, translation), PDF, Final Draft, Fade In and Fountain, on Mac, Windows, the web and the phone
