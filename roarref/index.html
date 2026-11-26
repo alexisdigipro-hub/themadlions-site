@@ -914,6 +914,13 @@ button svg,.ico svg,.pill svg,.round svg,svg.pfi{stroke-linecap:round;stroke-lin
   .rail button:hover svg{animation:gl-pop .5s cubic-bezier(.2,.9,.3,1)}
   .pill:active,.side .lay:active,.side .rt:active{transform:translateY(0) scale(.95)}
 }
+/* the foot stays at the bottom of the page however few characters there are (Alex, 26 Nov): Home's column is at least the screen's
+   height and the foot takes the space left above it */
+.spage{padding-bottom:0!important}
+.spage{display:flex;flex-direction:column}
+.spage > .phead,.spage > .pwrap{width:100%;box-sizing:border-box;flex:none}
+.spage > .pwrap{flex:1 0 auto}
+.pfoot{margin-top:auto!important;padding-top:28px}
 /* a field never makes the iPhone zoom in (Alex, 24 Nov: "I tap the search and it stays zoomed"): iOS zooms on a field whose
    letters are under 16px, so on a phone every field writes at 16px */
 @media (max-width:820px){input,select,textarea,.field,.psearch input{font-size:16px!important}}
